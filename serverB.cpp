@@ -34,7 +34,7 @@ private:
     m_interestName = interest1.getName();
 
     // send Interest 2 back
-    Interest interest2(Name("/serverA/interest2"));
+    Interest interest2(Name("/ndn/edu/colostate/interest2")); // TODO: don't hardcode this
     interest2.setInterestLifetime(time::milliseconds(1000));
     interest2.setMustBeFresh(true);
 
