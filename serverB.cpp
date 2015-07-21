@@ -1,9 +1,8 @@
 #include "face.hpp"
 #include "security/key-chain.hpp"
+#include <fstream>
 
-// Enclosing code in ndn simplifies coding (can also use `using namespace ndn`)
 namespace ndn {
-// Additional nested namespace could be used to prevent/limit name contentions
 namespace examples {
 
 class ServerB : noncopyable
@@ -28,6 +27,8 @@ private:
   onInterest(const InterestFilter& filter, const Interest& interest1)
   {
     const time::steady_clock::TimePoint& receiveI1Time = time::steady_clock::now();
+    auto ri1_se = receiveI1Time.time_since_epoch();
+    ri1 = time::duration_cast<time::microseconds>(ri1_se).count();
 
     std::cout << "<< Received Interest 1: " << interest1 << std::endl;
     std::cout << "At Time: " << receiveI1Time << std::endl;
@@ -41,7 +42,8 @@ private:
     interest2.setMustBeFresh(true);
 
     const time::steady_clock::TimePoint& sendI2Time = time::steady_clock::now();
-    time::nanoseconds makeI2Time = sendI2Time - receiveI1Time;
+    auto si2_se = sendI2Time.time_since_epoch();
+    si2 = time::duration_cast<time::microseconds>(si2_se).count();
 
     m_face.expressInterest(interest2,
                            bind(&ServerB::onData, this,  _1, _2, sendI2Time),
@@ -49,7 +51,6 @@ private:
 
     std::cout << "\n>> Sending Interest 2: " << interest2 << std::endl;
     std::cout << "At Time: " << sendI2Time << std::endl;
-    std::cout << "Make Interest 2 Time: " << makeI2Time << std::endl;
 
     // processEvents will block until the requested data received or timeout occurs
     // m_face.processEvents();  *****TODO: not sure if i need this*****
@@ -70,10 +71,10 @@ private:
   onData(const Interest& interest, const Data& data2, const time::steady_clock::TimePoint& sendI2Time)
   {
     const time::steady_clock::TimePoint& receiveD2Time = time::steady_clock::now();
-    time::nanoseconds rtt = receiveD2Time - sendI2Time;
+    auto rd2_se = receiveD2Time.time_since_epoch();
+    rd2 = time::duration_cast<time::microseconds>(rd2_se).count();
 
     std::cout << "\n<< Received Data 2: " << data2 << "At Time: " << receiveD2Time << std::endl;
-    std::cout << "Interest 2 -> Data 2 RTT: " << rtt << std::endl;
 
     m_interestName
       .append("testApp") // add "testApp" component to Interest name
@@ -93,13 +94,15 @@ private:
     // m_keyChain.sign(data, <certificate>);
 
     const time::steady_clock::TimePoint& sendD1Time = time::steady_clock::now();
-    time::nanoseconds makeD1Time = sendD1Time - receiveD2Time;
+    auto sd1_se = sendD1Time.time_since_epoch();
+    sd1 = time::duration_cast<time::microseconds>(sd1_se).count();
 
     // Return Data packet to the requester
     std::cout << "\n>> Sending Data 1: " << *data1 << "At Time: " << sendD1Time << std::endl;
-    std::cout << "Make Data 1 Time: " << makeD1Time << std::endl;
 
     m_face.put(*data1);
+
+    writeToFile();
   }
 
   void
@@ -108,10 +111,26 @@ private:
     std::cout << "Timeout of Interest 2: " << interest << std::endl;
   }
 
+  void
+  writeToFile()
+  {
+    std::ofstream myfile;
+    myfile.open ("serverB.txt");
+    myfile << ri1 << "\n";
+    myfile << si2 << "\n";
+    myfile << rd2 << "\n";
+    myfile << sd1 << "\n";
+    myfile.close();
+  }
+
 private:
   Face m_face;
   KeyChain m_keyChain;
   Name m_interestName; // name of incoming interest 1
+  int ri1;
+  int si2;
+  int rd2;
+  int sd1;
 };
 
 } // namespace examples
