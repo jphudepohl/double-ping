@@ -15,15 +15,16 @@ public:
     interest.setMustBeFresh(true);
 
     const time::steady_clock::TimePoint& sendI1Time = time::steady_clock::now();
-    auto si1_se = sendI1Time.time_since_epoch();
-    si1 = time::duration_cast<time::microseconds>(si1_se).count();
 
     m_face.expressInterest(interest,
                            bind(&Consumer::onData, this,  _1, _2, sendI1Time),
                            bind(&Consumer::onTimeout, this, _1));
 
     std::cout << "\n>> Sending Interest 1: " << interest << std::endl;
-    std::cout << "At Time: " << sendI1Time << std::endl;
+
+    // store time to use when print statistics
+    auto si1_se = sendI1Time.time_since_epoch();
+    si1 = time::duration_cast<time::microseconds>(si1_se).count();
 
     // processEvents will block until the requested data received or timeout occurs
     m_face.processEvents();
@@ -66,7 +67,7 @@ public:
     }
     infile.close();
 
-    std::cout << "\nDouble ping finished successfully. Printing statistics:\n";
+    std::cout << "Double ping finished successfully. Printing statistics:\n";
     // print interest statistics
     float interest_rtt = (ri2 - si1)/1000.0;
     std::cout << "Interest RTT: " << interest_rtt << " ms\n";
@@ -89,10 +90,12 @@ private:
   onData(const Interest& interest, const Data& data, const time::steady_clock::TimePoint& sendI1Time)
   {
     const time::steady_clock::TimePoint& receiveD1Time = time::steady_clock::now();
+
+    std::cout << "\n<< Received Data 1: " << data << std::endl;
+
+    // store time to use when print statistics
     auto rd1_se = receiveD1Time.time_since_epoch();
     rd1 = time::duration_cast<time::microseconds>(rd1_se).count();
-
-    std::cout << "\n<< Received Data 1: " << data << "At Time: " << receiveD1Time << std::endl;
   }
 
   void

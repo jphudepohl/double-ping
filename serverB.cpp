@@ -27,11 +27,8 @@ private:
   onInterest(const InterestFilter& filter, const Interest& interest1)
   {
     const time::steady_clock::TimePoint& receiveI1Time = time::steady_clock::now();
-    auto ri1_se = receiveI1Time.time_since_epoch();
-    ri1 = time::duration_cast<time::microseconds>(ri1_se).count();
 
     std::cout << "<< Received Interest 1: " << interest1 << std::endl;
-    std::cout << "At Time: " << receiveI1Time << std::endl;
 
     // store incoming Interest 1 name
     m_interestName = interest1.getName();
@@ -42,18 +39,18 @@ private:
     interest2.setMustBeFresh(true);
 
     const time::steady_clock::TimePoint& sendI2Time = time::steady_clock::now();
-    auto si2_se = sendI2Time.time_since_epoch();
-    si2 = time::duration_cast<time::microseconds>(si2_se).count();
 
     m_face.expressInterest(interest2,
                            bind(&ServerB::onData, this,  _1, _2, sendI2Time),
                            bind(&ServerB::onTimeout, this, _1));
 
     std::cout << "\n>> Sending Interest 2: " << interest2 << std::endl;
-    std::cout << "At Time: " << sendI2Time << std::endl;
 
-    // processEvents will block until the requested data received or timeout occurs
-    // m_face.processEvents();  *****TODO: not sure if i need this*****
+    // store time to write to file
+    auto ri1_se = receiveI1Time.time_since_epoch();
+    ri1 = time::duration_cast<time::microseconds>(ri1_se).count();
+    auto si2_se = sendI2Time.time_since_epoch();
+    si2 = time::duration_cast<time::microseconds>(si2_se).count();
   }
 
 
@@ -71,10 +68,8 @@ private:
   onData(const Interest& interest, const Data& data2, const time::steady_clock::TimePoint& sendI2Time)
   {
     const time::steady_clock::TimePoint& receiveD2Time = time::steady_clock::now();
-    auto rd2_se = receiveD2Time.time_since_epoch();
-    rd2 = time::duration_cast<time::microseconds>(rd2_se).count();
 
-    std::cout << "\n<< Received Data 2: " << data2 << "At Time: " << receiveD2Time << std::endl;
+    std::cout << "\n<< Received Data 2: " << data2 << std::endl;
 
     m_interestName
       .append("testApp") // add "testApp" component to Interest name
@@ -94,13 +89,17 @@ private:
     // m_keyChain.sign(data, <certificate>);
 
     const time::steady_clock::TimePoint& sendD1Time = time::steady_clock::now();
-    auto sd1_se = sendD1Time.time_since_epoch();
-    sd1 = time::duration_cast<time::microseconds>(sd1_se).count();
 
     // Return Data packet to the requester
-    std::cout << "\n>> Sending Data 1: " << *data1 << "At Time: " << sendD1Time << std::endl;
+    std::cout << ">> Sending Data 1: " << *data1 << std::endl;
 
     m_face.put(*data1);
+
+    // store time to write to file
+    auto rd2_se = receiveD2Time.time_since_epoch();
+    rd2 = time::duration_cast<time::microseconds>(rd2_se).count();
+    auto sd1_se = sendD1Time.time_since_epoch();
+    sd1 = time::duration_cast<time::microseconds>(sd1_se).count();
 
     writeToFile();
   }

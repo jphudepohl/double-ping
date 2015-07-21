@@ -28,11 +28,8 @@ private:
   onInterest(const InterestFilter& filter, const Interest& interest)
   {
     const time::steady_clock::TimePoint& receiveI2Time = time::steady_clock::now();
-    auto ri2_se = receiveI2Time.time_since_epoch();
-    ri2 = time::duration_cast<time::microseconds>(ri2_se).count();
 
     std::cout << "<< Received Interest 2: " << interest << std::endl;
-    std::cout << "At Time: " << receiveI2Time << std::endl;
 
     // Create new name, based on Interest's name
     Name dataName(interest.getName());
@@ -54,13 +51,17 @@ private:
     // m_keyChain.sign(data, <certificate>);
 
     const time::steady_clock::TimePoint& sendD2Time = time::steady_clock::now();
-    auto sd2_se = sendD2Time.time_since_epoch();
-    sd2 = time::duration_cast<time::microseconds>(sd2_se).count();
 
     // Return Data packet to the requester
-    std::cout << "\n>> Sending Data 2: " << *data << "At Time: " << sendD2Time << std::endl;
+    std::cout << "\n>> Sending Data 2: " << *data << std::endl;
     
     m_face.put(*data);
+
+    // store time to write to file
+    auto ri2_se = receiveI2Time.time_since_epoch();
+    ri2 = time::duration_cast<time::microseconds>(ri2_se).count();
+    auto sd2_se = sendD2Time.time_since_epoch();
+    sd2 = time::duration_cast<time::microseconds>(sd2_se).count();
 
     writeToFile();
   }
