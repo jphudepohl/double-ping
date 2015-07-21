@@ -9,12 +9,12 @@ class ServerB : noncopyable
 {
 public:
   void
-  run()
+  run(char* prefix)
   {
-    std::cout << "\n--- Server /serverB ---\n" << std::endl;
+    std::cout << "\n--- Server B: " << prefix << " ---\n" << std::endl;
 
     // set up server
-    m_face.setInterestFilter("/serverB",
+    m_face.setInterestFilter(Name(prefix),
                              bind(&ServerB::onInterest, this, _1, _2),
                              RegisterPrefixSuccessCallback(),
                              bind(&ServerB::onRegisterFailed, this, _1, _2));
@@ -138,9 +138,16 @@ private:
 int
 main(int argc, char** argv)
 {
+  // command line argument is prefix of server to advertise
+  // print error message if user does not provide prefix
+  if (argc < 2) {
+    std::cerr << "Usage: " << argv[0] << " [prefix]" << std::endl;
+    return 1;
+  }
+  char* prefix = argv[1];
   ndn::examples::ServerB serverB;
   try {
-    serverB.run();
+    serverB.run(prefix);
   }
   catch (const std::exception& e) {
     std::cerr << "ERROR: " << e.what() << std::endl;

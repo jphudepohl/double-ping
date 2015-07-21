@@ -8,9 +8,10 @@ class Consumer : noncopyable
 {
 public:
   void
-  run()
+  run(char* name)
   {
-    Interest interest(Name("/serverB/interest1"));
+    Name pingPacketName(name);
+    Interest interest(pingPacketName);
     interest.setInterestLifetime(time::milliseconds(1000)); // TODO: this might need to be longer
     interest.setMustBeFresh(true);
 
@@ -22,7 +23,7 @@ public:
 
     std::cout << "\n>> Sending Interest 1: " << interest << std::endl;
 
-    // store time to use when print statistics
+    // store time to print statistics
     auto si1_se = sendI1Time.time_since_epoch();
     si1 = time::duration_cast<time::microseconds>(si1_se).count();
 
@@ -116,9 +117,17 @@ private:
 int
 main(int argc, char** argv)
 {
+  // command line argument is prefix to ping
+  // print error message if user does not provide prefix
+  if (argc < 2) {
+    std::cerr << "Usage: " << argv[0] << " [name]\n"
+      "The first part of [name] should match the prefix that Server B is advertising.\n";
+    return 1;
+  }
+  char* name = argv[1];
   ndn::examples::Consumer consumer;
   try {
-    consumer.run();
+    consumer.run(name);
     consumer.printStatistics();
   }
   catch (const std::exception& e) {
