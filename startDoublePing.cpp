@@ -4,24 +4,24 @@
 namespace ndn {
 namespace examples {
 
-class Consumer : noncopyable
+class Client : noncopyable
 {
 public:
   void
-  run(char* name)
+  run(char* name1)
   {
-    Name pingPacketName(name);
-    Interest interest(pingPacketName);
-    interest.setInterestLifetime(time::milliseconds(1000)); // TODO: this might need to be longer
-    interest.setMustBeFresh(true);
+    Name pingPacketName(name1);
+    Interest interest1(pingPacketName);
+    interest1.setInterestLifetime(time::milliseconds(1000)); // TODO: this might need to be longer
+    interest1.setMustBeFresh(true);
 
     const time::steady_clock::TimePoint& sendI1Time = time::steady_clock::now();
 
-    m_face.expressInterest(interest,
-                           bind(&Consumer::onData, this,  _1, _2, sendI1Time),
-                           bind(&Consumer::onTimeout, this, _1));
+    m_face.expressInterest(interest1,
+                           bind(&Client::onData, this,  _1, _2, sendI1Time),
+                           bind(&Client::onTimeout, this, _1));
 
-    std::cout << "\n>> Sending Interest 1: " << interest << std::endl;
+    std::cout << "\n>> Sending Interest 1: " << interest1 << std::endl;
 
     // store time to print statistics
     auto si1_se = sendI1Time.time_since_epoch();
@@ -120,15 +120,15 @@ main(int argc, char** argv)
   // command line argument is prefix to ping
   // print error message if user does not provide prefix
   if (argc < 2) {
-    std::cerr << "Usage: " << argv[0] << " [name]\n"
-      "The first part of [name] should match the prefix that Server B is advertising.\n";
+    std::cerr << "Usage: " << argv[0] << " [name of Interest 1]\n"
+      "The first part of [name of Interest 1] should match the prefix that Server B is advertising.\n";
     return 1;
   }
-  char* name = argv[1];
-  ndn::examples::Consumer consumer;
+  char* name1 = argv[1];
+  ndn::examples::Client client;
   try {
-    consumer.run(name);
-    consumer.printStatistics();
+    client.run(name1);
+    client.printStatistics();
   }
   catch (const std::exception& e) {
     std::cerr << "ERROR: " << e.what() << std::endl;

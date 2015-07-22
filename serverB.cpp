@@ -9,13 +9,13 @@ class ServerB : noncopyable
 {
 public:
   void
-  run(char* prefix)
+  run(char* prefixB, char* name2)
   {
-    std::cout << "\n--- Server B: " << prefix << " ---\n" << std::endl;
+    std::cout << "\n--- Server B: " << prefixB << " ---\n" << std::endl;
 
     // set up server
-    m_face.setInterestFilter(Name(prefix),
-                             bind(&ServerB::onInterest, this, _1, _2),
+    m_face.setInterestFilter(Name(prefixB),
+                             bind(&ServerB::onInterest, this, _1, _2, name2),
                              RegisterPrefixSuccessCallback(),
                              bind(&ServerB::onRegisterFailed, this, _1, _2));
     m_face.processEvents();
@@ -24,7 +24,7 @@ public:
 private:
   // on receipt of Interest 1, send Interest 2 back
   void
-  onInterest(const InterestFilter& filter, const Interest& interest1)
+  onInterest(const InterestFilter& filter, const Interest& interest1, char* name2)
   {
     const time::steady_clock::TimePoint& receiveI1Time = time::steady_clock::now();
 
@@ -34,7 +34,8 @@ private:
     m_interestName = interest1.getName();
 
     // send Interest 2 back
-    Interest interest2(Name("/ndn/edu/colostate/interest2")); // TODO: don't hardcode this
+    Name pingPacketName(name2);
+    Interest interest2(pingPacketName);
     interest2.setInterestLifetime(time::milliseconds(1000));
     interest2.setMustBeFresh(true);
 
@@ -140,14 +141,16 @@ main(int argc, char** argv)
 {
   // command line argument is prefix of server to advertise
   // print error message if user does not provide prefix
-  if (argc < 2) {
-    std::cerr << "Usage: " << argv[0] << " [prefix]" << std::endl;
+  if (argc < 3) {
+    std::cerr << "Usage: " << argv[0] << " [prefix of Server B] [name of Interest 2]\n"
+      "The first part of [name of Interest 2] should match the prefix that Server A is advertising.\n";
     return 1;
   }
-  char* prefix = argv[1];
+  char* prefixB = argv[1];
+  char* name2 = argv[2];
   ndn::examples::ServerB serverB;
   try {
-    serverB.run(prefix);
+    serverB.run(prefixB, name2);
   }
   catch (const std::exception& e) {
     std::cerr << "ERROR: " << e.what() << std::endl;
