@@ -79,9 +79,9 @@ private:
   writeToFile()
   {
     std::ofstream myfile;
-    myfile.open ("serverA.txt");
+    myfile.open ("serverA.txt", std::ofstream::app);
     myfile << ri2 << "\n";
-    myfile << sd2;
+    myfile << sd2 << "\n";
     myfile.close();
   }
 

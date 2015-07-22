@@ -115,7 +115,7 @@ private:
   writeToFile()
   {
     std::ofstream myfile;
-    myfile.open ("serverB.txt");
+    myfile.open ("serverB.txt", std::ofstream::app);
     myfile << ri1 << "\n";
     myfile << si2 << "\n";
     myfile << rd2 << "\n";
