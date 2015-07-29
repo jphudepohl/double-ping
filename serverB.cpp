@@ -8,6 +8,11 @@ namespace examples {
 class ServerB : noncopyable
 {
 public:
+  ServerB()
+  {
+    m_nextSeq = random::generateWord64();
+  }
+
   void
   run(char* prefixB, char* name2)
   {
@@ -35,6 +40,7 @@ private:
 
     // send Interest 2 back
     Name pingPacketName(name2);
+    pingPacketName.append(std::to_string(m_nextSeq));
     Interest interest2(pingPacketName);
     interest2.setInterestLifetime(time::milliseconds(1000));
     interest2.setMustBeFresh(true);
@@ -46,6 +52,8 @@ private:
                            bind(&ServerB::onTimeout, this, _1));
 
     std::cout << "\n>> Sending Interest 2: " << interest2 << std::endl;
+
+    ++m_nextSeq;
 
     // store time to write to file
     auto ri1_se = receiveI1Time.time_since_epoch();
@@ -124,6 +132,7 @@ private:
   }
 
 private:
+  uint64_t m_nextSeq;
   Face m_face;
   KeyChain m_keyChain;
   Name m_interestName; // name of incoming interest 1

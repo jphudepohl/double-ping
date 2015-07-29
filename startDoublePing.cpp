@@ -1,4 +1,6 @@
 #include "face.hpp"
+#include "util/scheduler.hpp"
+#include "util/random.hpp"
 #include <fstream>
 
 namespace ndn {
@@ -6,44 +8,56 @@ namespace examples {
 
 class Client : noncopyable
 {
-  char* name1; // name of interest 1 (command line argument)
-  int m_numPings; // number of double ping cycles (command line option)
 public:
-  void 
-  setValues(char* name, int num)
+  Client(char* name, int numPings)
+    : m_name1(name)
+    , m_numPings(numPings)
+    , m_numSent(0)
+    , m_numOutstanding(0)
+    , m_face(m_ioService)
+    , m_scheduler(m_ioService)
   {
-    name1 = name;
-    m_numPings = num;
-    m_numSent = 0;
+    m_nextSeq = random::generateWord64();
   }
 
   void
   run()
   {
-    Name pingPacketName(name1);
+    performPing();
+
+    m_ioService.run();
+  }
+
+private:
+  void
+  performPing()
+  {
+    Name pingPacketName(m_name1);
+    pingPacketName.append(std::to_string(m_nextSeq));
+    
     Interest interest1(pingPacketName);
     interest1.setInterestLifetime(time::milliseconds(1000)); // TODO: this might need to be longer
     interest1.setMustBeFresh(true);
 
-    const time::steady_clock::TimePoint& sendI1Time = time::steady_clock::now();
-
     m_face.expressInterest(interest1,
-                           bind(&Client::onData, this,  _1, _2, sendI1Time),
+                           bind(&Client::onData, this,  _1, _2, time::steady_clock::now()),
                            bind(&Client::onTimeout, this, _1));
 
     std::cout << "\n>> Sending Interest 1: " << interest1 << std::endl;
     
-    m_numSent++;
-    
-    // store time to print statistics
-    auto si1_se = sendI1Time.time_since_epoch();
-    si1 = time::duration_cast<time::microseconds>(si1_se).count();
+    ++m_numSent;
+    ++m_nextSeq;
+    ++m_numOutstanding;
 
-    // processEvents will block until the requested data received or timeout occurs
-    m_face.processEvents();
+    if (m_numSent < m_numPings) {
+      m_scheduler.scheduleEvent(time::seconds(2), 
+                                bind(&Client::performPing, this));
+    }
+    else {
+      finish();
+    }
   }
 
-private:
   void
   onData(const Interest& interest, const Data& data, const time::steady_clock::TimePoint& sendI1Time)
   {
@@ -52,23 +66,37 @@ private:
     std::cout << "\n<< Received Data 1: " << data << std::endl;
 
     // store time to use when print statistics
+    auto si1_se = sendI1Time.time_since_epoch();
+    si1 = time::duration_cast<time::microseconds>(si1_se).count();
     auto rd1_se = receiveD1Time.time_since_epoch();
     rd1 = time::duration_cast<time::microseconds>(rd1_se).count();
 
     writeToFile();
 
-    if (m_numSent < m_numPings) {
-      run();
-    }
-    else {
-      printStatistics();
-    }
+    finish();
   }
 
   void
   onTimeout(const Interest& interest)
   {
     std::cout << "Timeout of Interest 1: " << interest << std::endl;
+
+    finish();
+  }
+
+  void
+  finish()
+  {
+    if (--m_numOutstanding >= 0) {
+      return;
+    }
+    // wait so files done being written to
+    sleep(5);
+    // shut down
+    m_face.shutdown();
+    m_face.getIoService().stop();
+    // output results to terminal
+    printStatistics();
   }
 
   void
@@ -84,9 +112,6 @@ private:
   void
   printStatistics()
   {
-    // sleep to make sure files are done being written to
-    sleep(5);
-
     std::cout << "Double ping finished successfully. Printing statistics:\n";
 
     std::string line;
@@ -110,34 +135,26 @@ private:
       if (finCA.is_open()) {
         std::getline(finCA,line);
         si1 = std::stoi(line);
-        std::cout << si1 << std::endl;
         std::getline(finCA,line);
         rd1 = std::stoi(line);
-        std::cout << rd1 << std::endl;
       }
       // get data from server A
       if (finSA.is_open()) {
         std::getline(finSA,line);
         ri2 = std::stoi(line);
-        std::cout << ri2 << std::endl;
         std::getline(finSA,line);
         sd2 = std::stoi(line);
-        std::cout << sd2 << std::endl;
       }
       // get data from server B
       if (finSB.is_open()) {
         std::getline(finSB,line);
         ri1 = std::stoi(line);
-        std::cout << ri1 << std::endl;
         std::getline(finSB,line);
         si2 = std::stoi(line);
-        std::cout << si2 << std::endl;
         std::getline(finSB,line);
         rd2 = std::stoi(line);
-        std::cout << rd2 << std::endl;
         std::getline(finSB,line);
         sd1 = std::stoi(line);
-        std::cout << sd1 << std::endl;
       }
 
       std::cout << "--- Double Ping " << count << " ---" << std::endl;
@@ -161,14 +178,22 @@ private:
     finCA.close();
     finSA.close();
     finSB.close();
-    remove("clientA.txt");
-    remove("serverA.txt");
-    remove("serverB.txt");
+    //remove("clientA.txt");
+    //remove("serverA.txt");
+    //remove("serverB.txt");
   }
 
 private:
-  Face m_face;
+  char* m_name1; // name of interest 1 (command line argument)
+  int m_numPings; // number of double ping cycles to perform (command line option)
   int m_numSent; // number of double ping cycles that have finished so far
+  int m_numOutstanding; // number of interests sent for which no data has been received yet
+  uint64_t m_nextSeq; 
+
+  boost::asio::io_service m_ioService;
+  Face m_face;
+  Scheduler m_scheduler;
+  
   int si1;
   int rd1;
 };
@@ -181,16 +206,15 @@ main(int argc, char** argv)
 {
   // command line argument is prefix to ping
   // print error message if user does not provide prefix
-  if (argc < 2) {
-    std::cerr << "Usage: " << argv[0] << " [name of Interest 1]\n"
+  if (argc < 3) {
+    std::cerr << "Usage: " << argv[0] << " [name of Interest 1] [number of interests to send]\n"
       "The first part of [name of Interest 1] should match the prefix that Server B is advertising.\n";
     return 1;
   }
   char* name = argv[1];
-  int num = 3;
-  ndn::examples::Client client;
+  int numPings = atoi(argv[2]);
+  ndn::examples::Client client (name, numPings);
   try {
-    client.setValues(name, num);
     client.run();
   }
   catch (const std::exception& e) {
