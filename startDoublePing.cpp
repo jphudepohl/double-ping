@@ -40,17 +40,17 @@ private:
     interest1.setMustBeFresh(true);
 
     m_face.expressInterest(interest1,
-                           bind(&Client::onData, this,  _1, _2, time::steady_clock::now()),
-                           bind(&Client::onTimeout, this, _1));
+                           bind(&Client::onData, this,  _1, _2, m_nextSeq, time::steady_clock::now()),
+                           bind(&Client::onTimeout, this, _1, m_nextSeq));
 
-    std::cout << "\n>> Sending Interest 1: " << interest1 << std::endl;
+    std::cout << "Sending Interest 1: " << m_name1 << " - Ping Reference = " << m_nextSeq << std::endl;
     
     ++m_numSent;
     ++m_nextSeq;
     ++m_numOutstanding;
 
     if (m_numSent < m_numPings) {
-      m_scheduler.scheduleEvent(time::seconds(2), 
+      m_scheduler.scheduleEvent(time::seconds(1), 
                                 bind(&Client::performPing, this));
     }
     else {
@@ -59,17 +59,17 @@ private:
   }
 
   void
-  onData(const Interest& interest, const Data& data, const time::steady_clock::TimePoint& sendI1Time)
+  onData(const Interest& interest, const Data& data, uint64_t seq, const time::steady_clock::TimePoint& sendI1Time)
   {
     const time::steady_clock::TimePoint& receiveD1Time = time::steady_clock::now();
 
-    std::cout << "\n<< Received Data 1: " << data << std::endl;
+    std::cout << "Received Data 1: " << m_name1 << " - Ping Reference = " << seq << std::endl;
 
     // store time to use when print statistics
-    auto si1_se = sendI1Time.time_since_epoch();
-    si1 = time::duration_cast<time::microseconds>(si1_se).count();
-    auto rd1_se = receiveD1Time.time_since_epoch();
-    rd1 = time::duration_cast<time::microseconds>(rd1_se).count();
+    auto sendI1_se = sendI1Time.time_since_epoch();
+    m_sendI1 = time::duration_cast<time::microseconds>(sendI1_se).count();
+    auto receiveD1_se = receiveD1Time.time_since_epoch();
+    m_receiveD1 = time::duration_cast<time::microseconds>(receiveD1_se).count();
 
     writeToFile();
 
@@ -77,9 +77,9 @@ private:
   }
 
   void
-  onTimeout(const Interest& interest)
+  onTimeout(const Interest& interest, uint64_t seq)
   {
-    std::cout << "Timeout of Interest 1: " << interest << std::endl;
+    std::cout << "Timeout of Interest 1: " << m_name1 << " - Ping Reference = " << seq << std::endl;
 
     finish();
   }
@@ -104,83 +104,115 @@ private:
   {
     std::ofstream myfile;
     myfile.open ("clientA.txt", std::ofstream::app);
-    myfile << si1 << "\n";
-    myfile << rd1 << "\n";
+    myfile << m_sendI1 << "\n";
+    myfile << m_receiveD1 << "\n";
     myfile.close();
   }
 
   void
   printStatistics()
   {
-    std::cout << "Double ping finished successfully. Printing statistics:\n";
+    std::cout << "\nDouble ping finished successfully. Printing statistics:" << std::endl;
 
     std::string line;
     
     std::ifstream finCA;
     finCA.open ("clientA.txt");
+    int sI1;
+    int rD1;
     std::ifstream finSA;
     finSA.open ("serverA.txt");
-    int ri2;
-    int sd2;
+    int rI2;
+    int sD2;
     std::ifstream finSB;
     finSB.open ("serverB.txt");
-    int ri1;
-    int si2;
-    int rd2;
-    int sd1;
+    int rI1;
+    int sI2;
+    int rD2;
+    int sD1;
+
+    // average statistics
+    float total_Irtt = 0.0;
+    float total_genI2 = 0.0;
+    float total_Itravel = 0.0;
+    float total_Drtt = 0.0;
+    float total_genD1 = 0.0;
+    float total_Dtravel = 0.0;
 
     for (int count = 1; count <= m_numSent; count++) {
 
       // get data from client A
       if (finCA.is_open()) {
         std::getline(finCA,line);
-        si1 = std::stoi(line);
+        sI1 = std::stoi(line);
         std::getline(finCA,line);
-        rd1 = std::stoi(line);
+        rD1 = std::stoi(line);
       }
       // get data from server A
       if (finSA.is_open()) {
         std::getline(finSA,line);
-        ri2 = std::stoi(line);
+        rI2 = std::stoi(line);
         std::getline(finSA,line);
-        sd2 = std::stoi(line);
+        sD2 = std::stoi(line);
       }
       // get data from server B
       if (finSB.is_open()) {
         std::getline(finSB,line);
-        ri1 = std::stoi(line);
+        rI1 = std::stoi(line);
         std::getline(finSB,line);
-        si2 = std::stoi(line);
+        sI2 = std::stoi(line);
         std::getline(finSB,line);
-        rd2 = std::stoi(line);
+        rD2 = std::stoi(line);
         std::getline(finSB,line);
-        sd1 = std::stoi(line);
+        sD1 = std::stoi(line);
+      }
+
+      float interest_rtt = (rI2 - sI1)/1000.0;
+      float genI2 = (sI2 - rI1)/1000.0;
+      float interest_travel = interest_rtt - genI2;
+      float data_rtt = (rD1 - sD2)/1000.0;
+      float genD2 = (sD1 - rD2)/1000.0;
+      float data_travel = data_rtt - genD2;
+
+      // update total variables for avg calculation
+      if (count != 1) {
+        total_Irtt += interest_rtt;
+        total_genI2 += genI2;
+        total_Itravel += interest_travel;
+        total_Drtt += data_rtt;
+        total_genD1 += genD2;
+        total_Dtravel += data_travel;
       }
 
       std::cout << "--- Double Ping " << count << " ---" << std::endl;
       // print interest statistics
-      float interest_rtt = (ri2 - si1)/1000.0;
-      std::cout << "Interest RTT: " << interest_rtt << " ms" << std::endl;
-      float makeI2 = (si2 - ri1)/1000.0;
-      std::cout << "Make Interest 2 Time: " << makeI2 << " ms" << std::endl;
-      float interest_travel = interest_rtt - makeI2;
-      std::cout << "Interest Travel Time: " << interest_travel << " ms" << std::endl;
+      std::cout << "Interest RTT = " << interest_rtt << " ms" << std::endl;
+      std::cout << "Generate Interest 2 Time = " << genI2 << " ms" << std::endl;
+      std::cout << "Interest Travel Time = " << interest_travel << " ms" << std::endl;
       // print data statistics
-      float data_rtt = (rd1 - sd2)/1000.0;
-      std::cout << "Data RTT: " << data_rtt << " ms" << std::endl;
-      float makeD2 = (sd1 - rd2)/1000.0;
-      std::cout << "Make Data 1 Time: " << makeD2 << " ms" << std::endl;
-      float data_travel = data_rtt - makeD2;
-      std::cout << "Data Travel Time: " << data_travel << " ms" << std::endl;
+      std::cout << "Data RTT = " << data_rtt << " ms" << std::endl;
+      std::cout << "Generate Data 1 Time = " << genD2 << " ms" << std::endl;
+      std::cout << "Data Travel Time = " << data_travel << " ms" << std::endl;
     }
+
+    int pingsToCount = m_numPings - 1; // don't count first ping
+
+    // print average statistics
+    std::cout << "\n=== Average Statistics (excluding first cycle) ===" << std::endl;
+    std::cout << "Interest RTT = " << total_Irtt / pingsToCount << " ms" << std::endl;
+    std::cout << "Generate Interest 2 Time = " << total_genI2 / pingsToCount  << " ms" << std::endl;
+    std::cout << "Interest Travel Time = " << total_Itravel / pingsToCount << " ms" << std::endl;
+    std::cout << "Data RTT = " << total_Drtt / pingsToCount << " ms" << std::endl;
+    std::cout << "Generate Data 1 Time = " << total_genD1 / pingsToCount << " ms" << std::endl;
+    std::cout << "Data Travel Time = " << total_Dtravel / pingsToCount << " ms" << std::endl;
 
     // delete log files
     finCA.close();
     finSA.close();
     finSB.close();
-    //remove("clientA.txt");
-    //remove("serverA.txt");
-    //remove("serverB.txt");
+    remove("clientA.txt");
+    remove("serverA.txt");
+    remove("serverB.txt");
   }
 
 private:
@@ -194,8 +226,8 @@ private:
   Face m_face;
   Scheduler m_scheduler;
   
-  int si1;
-  int rd1;
+  int m_sendI1;
+  int m_receiveD1;
 };
 
 } // namespace examples

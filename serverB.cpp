@@ -16,7 +16,7 @@ public:
   void
   run(char* prefixB, char* name2)
   {
-    std::cout << "\n--- Server B: " << prefixB << " ---\n" << std::endl;
+    std::cout << "\n=== Server B: " << prefixB << " ===\n" << std::endl;
 
     // set up server
     m_face.setInterestFilter(Name(prefixB),
@@ -33,10 +33,10 @@ private:
   {
     const time::steady_clock::TimePoint& receiveI1Time = time::steady_clock::now();
 
-    std::cout << "<< Received Interest 1: " << interest1 << std::endl;
-
     // store incoming Interest 1 name
     m_interestName = interest1.getName();
+
+    std::cout << "Received Interest 1: " << m_interestName << std::endl;
 
     // send Interest 2 back
     Name pingPacketName(name2);
@@ -51,15 +51,15 @@ private:
                            bind(&ServerB::onData, this,  _1, _2, sendI2Time),
                            bind(&ServerB::onTimeout, this, _1));
 
-    std::cout << "\n>> Sending Interest 2: " << interest2 << std::endl;
+    std::cout << "Sending Interest 2: " << name2 << " - Ping Reference = " << m_nextSeq << std::endl;
 
     ++m_nextSeq;
 
     // store time to write to file
-    auto ri1_se = receiveI1Time.time_since_epoch();
-    ri1 = time::duration_cast<time::microseconds>(ri1_se).count();
-    auto si2_se = sendI2Time.time_since_epoch();
-    si2 = time::duration_cast<time::microseconds>(si2_se).count();
+    auto receiveI1_se = receiveI1Time.time_since_epoch();
+    m_receiveI1 = time::duration_cast<time::microseconds>(receiveI1_se).count();
+    auto sendI2_se = sendI2Time.time_since_epoch();
+    m_sendI2 = time::duration_cast<time::microseconds>(sendI2_se).count();
   }
 
 
@@ -78,7 +78,7 @@ private:
   {
     const time::steady_clock::TimePoint& receiveD2Time = time::steady_clock::now();
 
-    std::cout << "\n<< Received Data 2: " << data2 << std::endl;
+    std::cout << "Received Data 2: " << data2 << std::endl;
 
     m_interestName
       .append("testApp") // add "testApp" component to Interest name
@@ -100,15 +100,15 @@ private:
     const time::steady_clock::TimePoint& sendD1Time = time::steady_clock::now();
 
     // Return Data packet to the requester
-    std::cout << ">> Sending Data 1: " << *data1 << std::endl;
+    std::cout << "Sending Data 1: " << *data1 << std::endl;
 
     m_face.put(*data1);
 
     // store time to write to file
-    auto rd2_se = receiveD2Time.time_since_epoch();
-    rd2 = time::duration_cast<time::microseconds>(rd2_se).count();
-    auto sd1_se = sendD1Time.time_since_epoch();
-    sd1 = time::duration_cast<time::microseconds>(sd1_se).count();
+    auto receiveD2_se = receiveD2Time.time_since_epoch();
+    m_receiveD2 = time::duration_cast<time::microseconds>(receiveD2_se).count();
+    auto sendD1_se = sendD1Time.time_since_epoch();
+    m_sendD1 = time::duration_cast<time::microseconds>(sendD1_se).count();
 
     writeToFile();
   }
@@ -124,10 +124,10 @@ private:
   {
     std::ofstream myfile;
     myfile.open ("serverB.txt", std::ofstream::app);
-    myfile << ri1 << "\n";
-    myfile << si2 << "\n";
-    myfile << rd2 << "\n";
-    myfile << sd1 << "\n";
+    myfile << m_receiveI1 << "\n";
+    myfile << m_sendI2 << "\n";
+    myfile << m_receiveD2 << "\n";
+    myfile << m_sendD1 << "\n";
     myfile.close();
   }
 
@@ -136,10 +136,10 @@ private:
   Face m_face;
   KeyChain m_keyChain;
   Name m_interestName; // name of incoming interest 1
-  int ri1;
-  int si2;
-  int rd2;
-  int sd1;
+  int m_receiveI1;
+  int m_sendI2;
+  int m_receiveD2;
+  int m_sendD1;
 };
 
 } // namespace examples

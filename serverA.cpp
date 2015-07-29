@@ -11,7 +11,7 @@ public:
   void
   run(char* prefixA)
   {
-    std::cout << "\n--- Server A: " << prefixA << " ---\n" << std::endl;
+    std::cout << "\n=== Server A: " << prefixA << " ===\n" << std::endl;
 
     // set up server
     m_face.setInterestFilter(Name(prefixA),
@@ -29,7 +29,7 @@ private:
   {
     const time::steady_clock::TimePoint& receiveI2Time = time::steady_clock::now();
 
-    std::cout << "<< Received Interest 2: " << interest2 << std::endl;
+    std::cout << "Received Interest 2: " << interest2 << std::endl;
 
     // Create new name, based on Interest's name
     Name dataName(interest2.getName());
@@ -53,7 +53,7 @@ private:
     const time::steady_clock::TimePoint& sendD2Time = time::steady_clock::now();
 
     // Return Data packet to the requester
-    std::cout << "\n>> Sending Data 2: " << *data << std::endl;
+    std::cout << "Sending Data 2: " << *data << std::endl;
     
     m_face.put(*data);
 
