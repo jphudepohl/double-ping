@@ -9,6 +9,8 @@ class ServerB : noncopyable
 {
 public:
   ServerB()
+  // *** V2 *** uncomment to make data packets in advance
+  // : currentDataNum(0)
   {
     m_nextSeq = random::generateWord64();
   }
@@ -16,6 +18,9 @@ public:
   void
   run(char* prefixB, char* name2)
   {
+    // *** V2 *** uncomment to make data packets in advance
+    // generateDataPackets();
+
     std::cout << "\n=== Server B: " << prefixB << " ===\n" << std::endl;
 
     // set up server
@@ -31,37 +36,44 @@ private:
   void
   onInterest(const InterestFilter& filter, const Interest& interest1, char* name2)
   {
+    // store time that received Interest 1
     const time::steady_clock::TimePoint& receiveI1Time = time::steady_clock::now();
 
     // store incoming Interest 1 name
     m_interestName = interest1.getName();
 
-    std::cout << "Received Interest 1: " << m_interestName << std::endl;
+    std::string iName = m_interestName.toUri();
+    size_t delimiter = iName.find_last_of("/");
+    std::string prefix = iName.substr(0,delimiter);
+    std::string seq = iName.substr(delimiter+1);
 
-    // send Interest 2 back
+    std::cout << "Received Interest 1 : " << prefix << " - Ping Reference = " << seq << std::endl;
+
+    // make Interest 2
     Name pingPacketName(name2);
     pingPacketName.append(std::to_string(m_nextSeq));
     Interest interest2(pingPacketName);
     interest2.setInterestLifetime(time::milliseconds(1000));
     interest2.setMustBeFresh(true);
 
+    // store time that sent Interest 2
     const time::steady_clock::TimePoint& sendI2Time = time::steady_clock::now();
 
+    // send Interest 2 back
     m_face.expressInterest(interest2,
                            bind(&ServerB::onData, this,  _1, _2, sendI2Time),
                            bind(&ServerB::onTimeout, this, _1));
 
-    std::cout << "Sending Interest 2: " << name2 << " - Ping Reference = " << m_nextSeq << std::endl;
+    std::cout << "Sending Interest 2  : " << name2 << " - Ping Reference = " << m_nextSeq << std::endl;
 
     ++m_nextSeq;
 
-    // store time to write to file
+    // convert times to ints
     auto receiveI1_se = receiveI1Time.time_since_epoch();
     m_receiveI1 = time::duration_cast<time::microseconds>(receiveI1_se).count();
     auto sendI2_se = sendI2Time.time_since_epoch();
     m_sendI2 = time::duration_cast<time::microseconds>(sendI2_se).count();
   }
-
 
   void
   onRegisterFailed(const Name& prefix, const std::string& reason)
@@ -76,33 +88,51 @@ private:
   void
   onData(const Interest& interest, const Data& data2, const time::steady_clock::TimePoint& sendI2Time)
   {
+    // store time that received Data 2
     const time::steady_clock::TimePoint& receiveD2Time = time::steady_clock::now();
 
-    std::cout << "Received Data 2: " << data2 << std::endl;
+    std::string i2Name = interest.getName().toUri();
+    size_t delimiter2 = i2Name.find_last_of("/");
+    std::string prefix2 = i2Name.substr(0,delimiter2);
+    std::string seq2 = i2Name.substr(delimiter2+1);
 
-    m_interestName
-      .append("testApp") // add "testApp" component to Interest name
-      .appendVersion();  // add "version" component (current UNIX timestamp in milliseconds)
+    std::cout << "Received Data 2     : " << prefix2 << " - Ping Reference = " << seq2 << std::endl;
 
+    // *** V2 *** uncomment these lines
+    // get data out of array here
+    // shared_ptr<Data> data1 = arr[currentDataNum];
+    // ++currentDataNum;
+
+    // *** V2 *** comment next 15 lines out if making data in advance
+    Name dataName = m_interestName;
+    dataName
+      .append("testApp") // add "testApp" component to interest name
+      .appendVersion(); // add "version" component (current UNIX timestamp in milliseconds)
+
+    // dummy content
     static const std::string content = "HELLO KITTY";
 
-    // Create Data packet
+    // create data packet
     shared_ptr<Data> data1 = make_shared<Data>();
-    data1->setName(m_interestName);
-    data1->setFreshnessPeriod(time::seconds(10));
+    data1->setName(dataName);
+    data1->setFreshnessPeriod(time::seconds(10)); 
     data1->setContent(reinterpret_cast<const uint8_t*>(content.c_str()), content.size());
 
-    // Sign Data packet with default identity
     m_keyChain.sign(*data1);
-    // m_keyChain.sign(data, <identityName>);
-    // m_keyChain.sign(data, <certificate>);
+    // *** V2 *** comment out to here if making data in advance
 
+    // store time that sent Data 1
     const time::steady_clock::TimePoint& sendD1Time = time::steady_clock::now();
-
-    // Return Data packet to the requester
-    std::cout << "Sending Data 1: " << *data1 << std::endl;
-
+    
+    // return data packet to requester
     m_face.put(*data1);
+
+    std::string i1Name = m_interestName.toUri();
+    size_t delimiter1 = i1Name.find_last_of("/");
+    std::string prefix1 = i1Name.substr(0,delimiter1);
+    std::string seq1 = i1Name.substr(delimiter1+1);
+
+    std::cout << "Sending Data 1      : " << prefix1 << " - Ping Reference = " << seq1 << std::endl;
 
     // store time to write to file
     auto receiveD2_se = receiveD2Time.time_since_epoch();
@@ -131,15 +161,53 @@ private:
     myfile.close();
   }
 
+/* *** V2 *** need this function to make data packets in advance
+  void
+  generateDataPackets()
+  {
+    uint64_t seq = 10488217288391642338; // this must match m_nextSeq in startDoublePing.cpp
+
+    for (int i = 0; i < numDataPackets; i++) 
+    {
+      std::cout << i << std::endl;
+
+      Name dataName("/ndn/edu/wustl/ping1"); // *** V2*** this is hard-coded, can change to what makes sense
+      dataName
+        .append(std::to_string(seq)) // add sequence number
+        .append("testApp") // add "testApp" component to Interest name
+        .appendVersion();  // add "version" component (current UNIX timestamp in milliseconds)
+
+      // dummy conent
+      static const std::string content = "HELLO KITTY";
+
+      // create Data packet
+      shared_ptr<Data> data1 = make_shared<Data>();
+      data1->setName(dataName);
+      data1->setFreshnessPeriod(time::seconds(10));
+      data1->setContent(reinterpret_cast<const uint8_t*>(content.c_str()), content.size());
+
+      m_keyChain.sign(*data1);
+
+      arr[i] = data1;
+
+      ++seq;
+    }
+  }*/
+
 private:
-  uint64_t m_nextSeq;
+  uint64_t m_nextSeq; // ping sequence number
   Face m_face;
   KeyChain m_keyChain;
-  Name m_interestName; // name of incoming interest 1
-  int m_receiveI1;
-  int m_sendI2;
-  int m_receiveD2;
-  int m_sendD1;
+  Name m_interestName; // name of incoming Interest 1
+  int m_receiveI1; // time that Machine B received Interest 1
+  int m_sendI2; // time that Machine B sent Interest 2
+  int m_receiveD2; // time that Machine B received Data 2
+  int m_sendD1; // time that Machine B sent Data 1
+
+  // *** V2 *** uncomment these lines to make data packets in advance
+  // static const int numDataPackets = 100;
+  // shared_ptr<Data> arr[numDataPackets];
+  // int currentDataNum;
 };
 
 } // namespace examples
@@ -148,7 +216,7 @@ private:
 int
 main(int argc, char** argv)
 {
-  // command line argument is prefix of server to advertise
+  // command line arguments: prefix of server to advertise and name of Interest 2
   // print error message if user does not provide prefix
   if (argc < 3) {
     std::cerr << "Usage: " << argv[0] << " [prefix of Server B] [name of Interest 2]\n"

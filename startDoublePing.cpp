@@ -18,6 +18,8 @@ public:
     , m_scheduler(m_ioService)
   {
     m_nextSeq = random::generateWord64();
+    // *** V2 *** to make data packets in advance, this number must match seq in serverB.cpp
+    // m_nextSeq = 10488217288391642338;
   }
 
   void
@@ -32,23 +34,27 @@ private:
   void
   performPing()
   {
+    // make interest packet name
     Name pingPacketName(m_name1);
     pingPacketName.append(std::to_string(m_nextSeq));
     
+    // create interest packet
     Interest interest1(pingPacketName);
-    interest1.setInterestLifetime(time::milliseconds(1000)); // TODO: this might need to be longer
+    interest1.setInterestLifetime(time::milliseconds(1000));
     interest1.setMustBeFresh(true);
 
+    // send interest
     m_face.expressInterest(interest1,
                            bind(&Client::onData, this,  _1, _2, m_nextSeq, time::steady_clock::now()),
                            bind(&Client::onTimeout, this, _1, m_nextSeq));
 
-    std::cout << "Sending Interest 1: " << m_name1 << " - Ping Reference = " << m_nextSeq << std::endl;
+    std::cout << "Sending Interest 1 : " << m_name1 << " - Ping Reference = " << m_nextSeq << std::endl;
     
     ++m_numSent;
     ++m_nextSeq;
     ++m_numOutstanding;
 
+    // check if should keep sending interests
     if (m_numSent < m_numPings) {
       m_scheduler.scheduleEvent(time::seconds(1), 
                                 bind(&Client::performPing, this));
@@ -61,11 +67,12 @@ private:
   void
   onData(const Interest& interest, const Data& data, uint64_t seq, const time::steady_clock::TimePoint& sendI1Time)
   {
+    // store receipt of Data 1 time
     const time::steady_clock::TimePoint& receiveD1Time = time::steady_clock::now();
 
-    std::cout << "Received Data 1: " << m_name1 << " - Ping Reference = " << seq << std::endl;
+    std::cout << "Received Data 1    : " << m_name1 << " - Ping Reference = " << seq << std::endl;
 
-    // store time to use when print statistics
+    // convert stored times to ints
     auto sendI1_se = sendI1Time.time_since_epoch();
     m_sendI1 = time::duration_cast<time::microseconds>(sendI1_se).count();
     auto receiveD1_se = receiveD1Time.time_since_epoch();
@@ -79,7 +86,7 @@ private:
   void
   onTimeout(const Interest& interest, uint64_t seq)
   {
-    std::cout << "Timeout of Interest 1: " << m_name1 << " - Ping Reference = " << seq << std::endl;
+    std::cout << "Timeout of Interest 1 : " << m_name1 << " - Ping Reference = " << seq << std::endl;
 
     finish();
   }
@@ -186,25 +193,25 @@ private:
 
       std::cout << "--- Double Ping " << count << " ---" << std::endl;
       // print interest statistics
-      std::cout << "Interest RTT = " << interest_rtt << " ms" << std::endl;
+      std::cout << "Interest RTT             = " << interest_rtt << " ms" << std::endl;
       std::cout << "Generate Interest 2 Time = " << genI2 << " ms" << std::endl;
-      std::cout << "Interest Travel Time = " << interest_travel << " ms" << std::endl;
+      std::cout << "Interest Travel Time     = " << interest_travel << " ms" << std::endl;
       // print data statistics
-      std::cout << "Data RTT = " << data_rtt << " ms" << std::endl;
-      std::cout << "Generate Data 1 Time = " << genD2 << " ms" << std::endl;
-      std::cout << "Data Travel Time = " << data_travel << " ms" << std::endl;
+      std::cout << "Data RTT                 = " << data_rtt << " ms" << std::endl;
+      std::cout << "Generate Data 1 Time     = " << genD2 << " ms" << std::endl;
+      std::cout << "Data Travel Time         = " << data_travel << " ms" << std::endl;
     }
 
     int pingsToCount = m_numPings - 1; // don't count first ping
 
     // print average statistics
     std::cout << "\n=== Average Statistics (excluding first cycle) ===" << std::endl;
-    std::cout << "Interest RTT = " << total_Irtt / pingsToCount << " ms" << std::endl;
+    std::cout << "Interest RTT             = " << total_Irtt / pingsToCount << " ms" << std::endl;
     std::cout << "Generate Interest 2 Time = " << total_genI2 / pingsToCount  << " ms" << std::endl;
-    std::cout << "Interest Travel Time = " << total_Itravel / pingsToCount << " ms" << std::endl;
-    std::cout << "Data RTT = " << total_Drtt / pingsToCount << " ms" << std::endl;
-    std::cout << "Generate Data 1 Time = " << total_genD1 / pingsToCount << " ms" << std::endl;
-    std::cout << "Data Travel Time = " << total_Dtravel / pingsToCount << " ms" << std::endl;
+    std::cout << "Interest Travel Time     = " << total_Itravel / pingsToCount << " ms" << std::endl;
+    std::cout << "Data RTT                 = " << total_Drtt / pingsToCount << " ms" << std::endl;
+    std::cout << "Generate Data 1 Time     = " << total_genD1 / pingsToCount << " ms" << std::endl;
+    std::cout << "Data Travel Time         = " << total_Dtravel / pingsToCount << " ms" << std::endl;
 
     // delete log files
     finCA.close();
@@ -216,18 +223,18 @@ private:
   }
 
 private:
-  char* m_name1; // name of interest 1 (command line argument)
+  char* m_name1; // name of Interest 1 (command line argument)
   int m_numPings; // number of double ping cycles to perform (command line option)
   int m_numSent; // number of double ping cycles that have finished so far
   int m_numOutstanding; // number of interests sent for which no data has been received yet
-  uint64_t m_nextSeq; 
+  uint64_t m_nextSeq; // ping sequence number
 
   boost::asio::io_service m_ioService;
   Face m_face;
   Scheduler m_scheduler;
   
-  int m_sendI1;
-  int m_receiveD1;
+  int m_sendI1; // time that Machine A sent Interest 1
+  int m_receiveD1; // time that Machine A received Data 1
 };
 
 } // namespace examples
@@ -236,7 +243,7 @@ private:
 int
 main(int argc, char** argv)
 {
-  // command line argument is prefix to ping
+  // command line arguments: prefix to ping and number of interests to send
   // print error message if user does not provide prefix
   if (argc < 3) {
     std::cerr << "Usage: " << argv[0] << " [name of Interest 1] [number of interests to send]\n"
