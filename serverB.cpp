@@ -171,13 +171,13 @@ private:
     {
       std::cout << i << std::endl;
 
-      Name dataName("/ndn/edu/wustl/ping1"); // *** V2*** this is hard-coded, can change to what makes sense
+      Name dataName("/ndn/edu/wustl/ping1"); // *** V2*** this is hard-coded, change to what makes sense
       dataName
         .append(std::to_string(seq)) // add sequence number
         .append("testApp") // add "testApp" component to Interest name
         .appendVersion();  // add "version" component (current UNIX timestamp in milliseconds)
 
-      // dummy conent
+      // dummy content
       static const std::string content = "HELLO KITTY";
 
       // create Data packet
